@@ -1,0 +1,9 @@
+{
+  "id": "rule-based-daily-tasks",
+  "name": "Rule Based Daily Tasks",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Generates daily note tasks from simple recurrence rules in task source notes.",
+  "author": "Arkadiy",
+  "isDesktopOnly": false
+}
