@@ -288,33 +288,40 @@ export default class RuleBasedDailyTasksPlugin extends Plugin {
     const countRange = rule.max - rule.min + 1;
     const desiredCount = rule.min + (hashString(`${seed}:${periodKey}:count`) % countRange);
     const count = Math.min(desiredCount, dates.length);
-    const selectedDates = dates
-      .map((date) => ({
-        date,
-        weight: hashString(`${seed}:${periodKey}:${date}`),
-      }))
-      .sort((a, b) => a.weight - b.weight)
-      .slice(0, count)
-      .map((entry) => entry.date);
+    const selectedDates = selectSpreadDates(dates, count, seed, periodKey);
 
     return selectedDates.includes(dailyDate);
   }
 
   private upsertGeneratedBlock(content: string, taskLines: string[]): string {
-    const markerBlock = [BLOCK_START, ...taskLines, BLOCK_END].join("\n");
+    const heading = this.settings.generatedHeading.trim() || DEFAULT_SETTINGS.generatedHeading;
+    const sectionBody = taskLines.join("\n");
+    const generatedSection = sectionBody ? `## ${heading}\n\n${sectionBody}` : "";
+    const headingBlock = new RegExp(
+      `(^|\n)##\\s+${escapeRegExp(heading)}\\s*\n[\\s\\S]*?(?=\n#{1,6}\\s+|$)`
+    );
     const existingBlock = new RegExp(`${escapeRegExp(BLOCK_START)}[\\s\\S]*?${escapeRegExp(BLOCK_END)}`);
 
+    if (headingBlock.test(content)) {
+      return content.replace(headingBlock, (_match, prefix: string) => {
+        if (!generatedSection) {
+          return prefix === "\n" ? "" : prefix;
+        }
+
+        return `${prefix}${generatedSection}`;
+      });
+    }
+
     if (existingBlock.test(content)) {
-      return content.replace(existingBlock, markerBlock);
+      return content.replace(existingBlock, sectionBody);
     }
 
     if (taskLines.length === 0) {
       return content;
     }
 
-    const heading = this.settings.generatedHeading.trim() || DEFAULT_SETTINGS.generatedHeading;
     const separator = content.trim().length === 0 ? "" : "\n\n";
-    return `${content.trimEnd()}${separator}## ${heading}\n\n${markerBlock}\n`;
+    return `${content.trimEnd()}${separator}${generatedSection}\n`;
   }
 }
 
@@ -477,6 +484,23 @@ function periodDates(targetDate: moment.Moment, period: SchedulePeriod): string[
   }
 
   return dates;
+}
+
+function selectSpreadDates(dates: string[], count: number, seed: string, periodKey: string): string[] {
+  if (count >= dates.length) {
+    return dates;
+  }
+
+  const selectedDates: string[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const start = Math.floor((index * dates.length) / count);
+    const end = Math.max(start + 1, Math.floor(((index + 1) * dates.length) / count));
+    const bucket = dates.slice(start, end);
+    const bucketIndex = hashString(`${seed}:${periodKey}:bucket:${index}`) % bucket.length;
+    selectedDates.push(bucket[bucketIndex]);
+  }
+
+  return selectedDates;
 }
 
 function normalizeFolder(folder: string): string {
