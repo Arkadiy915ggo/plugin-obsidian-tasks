@@ -68,9 +68,16 @@ var RuleBasedDailyTasksPlugin = class extends import_obsidian.Plugin {
     window.setTimeout(() => {
       const currentFile = this.app.vault.getAbstractFileByPath(file.path);
       if (currentFile instanceof import_obsidian.TFile) {
-        void this.generateTasksForDailyNote(currentFile, dailyDate, false);
+        void this.generateTasksForNewDailyNote(currentFile, dailyDate);
       }
     }, 750);
+  }
+  async generateTasksForNewDailyNote(dailyFile, dailyDate) {
+    const content = await this.app.vault.read(dailyFile);
+    if (this.getExistingGeneratedTaskLines(content).length > 0) {
+      return;
+    }
+    await this.generateTasksForDailyNote(dailyFile, dailyDate, false);
   }
   async generateForActiveDailyNote() {
     const file = this.app.workspace.getActiveFile();
@@ -91,7 +98,7 @@ var RuleBasedDailyTasksPlugin = class extends import_obsidian.Plugin {
     const content = await this.app.vault.read(dailyFile);
     const updatedContent = this.upsertGeneratedBlock(
       content,
-      tasks.map((task) => `- [ ] ${task.text}`)
+      this.buildGeneratedTaskLines(content, tasks)
     );
     if (updatedContent !== content) {
       await this.app.vault.modify(dailyFile, updatedContent);
@@ -118,6 +125,42 @@ var RuleBasedDailyTasksPlugin = class extends import_obsidian.Plugin {
       }
       return file.path.startsWith(`${sourceFolder}/`);
     });
+  }
+  buildGeneratedTaskLines(content, tasks) {
+    var _a;
+    const existingLines = this.getExistingGeneratedTaskLines(content);
+    const existingByText = /* @__PURE__ */ new Map();
+    for (const line of existingLines) {
+      const taskMatch = line.match(/^\s*[-*]\s+\[[ xX]\]\s+(.+?)\s*$/);
+      if (!taskMatch) {
+        continue;
+      }
+      const key = normalizeGeneratedTaskText(taskMatch[1]);
+      const lines = (_a = existingByText.get(key)) != null ? _a : [];
+      lines.push(line.trimEnd().replace(/^\s*[-*]\s+/, "- "));
+      existingByText.set(key, lines);
+    }
+    return tasks.map((task) => {
+      const existing = existingByText.get(normalizeGeneratedTaskText(task.text));
+      const preservedLine = existing == null ? void 0 : existing.shift();
+      return preservedLine != null ? preservedLine : `- [ ] ${task.text}`;
+    });
+  }
+  getExistingGeneratedTaskLines(content) {
+    const heading = this.settings.generatedHeading.trim() || DEFAULT_SETTINGS.generatedHeading;
+    const headingBlock = new RegExp(
+      `(^|
+)##\\s+${escapeRegExp(heading)}\\s*
+[\\s\\S]*?(?=
+#{1,6}\\s+|$)`
+    );
+    const headingMatch = content.match(headingBlock);
+    if (headingMatch) {
+      return headingMatch[0].split(/\r?\n/);
+    }
+    const existingBlock = new RegExp(`${escapeRegExp(BLOCK_START)}[\\s\\S]*?${escapeRegExp(BLOCK_END)}`);
+    const markerMatch = content.match(existingBlock);
+    return markerMatch ? markerMatch[0].split(/\r?\n/) : [];
   }
   parseTaskTemplates(content, sourcePath) {
     const lines = content.split(/\r?\n/);
@@ -375,6 +418,9 @@ function normalizeFolder(folder) {
 }
 function indentationWidth(value) {
   return value.replace(/\t/g, "    ").length;
+}
+function normalizeGeneratedTaskText(value) {
+  return value.trim().replace(/\s+✅\s+\d{4}-\d{2}-\d{2}\s*$/, "").replace(/\s+/g, " ");
 }
 function isValidDate(value) {
   return (0, import_obsidian.moment)(value, DATE_FORMAT, true).isValid();

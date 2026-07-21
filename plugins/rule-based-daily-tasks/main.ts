@@ -102,9 +102,18 @@ export default class RuleBasedDailyTasksPlugin extends Plugin {
     window.setTimeout(() => {
       const currentFile = this.app.vault.getAbstractFileByPath(file.path);
       if (currentFile instanceof TFile) {
-        void this.generateTasksForDailyNote(currentFile, dailyDate, false);
+        void this.generateTasksForNewDailyNote(currentFile, dailyDate);
       }
     }, 750);
+  }
+
+  private async generateTasksForNewDailyNote(dailyFile: TFile, dailyDate: string): Promise<void> {
+    const content = await this.app.vault.read(dailyFile);
+    if (this.getExistingGeneratedTaskLines(content).length > 0) {
+      return;
+    }
+
+    await this.generateTasksForDailyNote(dailyFile, dailyDate, false);
   }
 
   private async generateForActiveDailyNote(): Promise<void> {
@@ -136,7 +145,7 @@ export default class RuleBasedDailyTasksPlugin extends Plugin {
     const content = await this.app.vault.read(dailyFile);
     const updatedContent = this.upsertGeneratedBlock(
       content,
-      tasks.map((task) => `- [ ] ${task.text}`)
+      this.buildGeneratedTaskLines(content, tasks)
     );
 
     if (updatedContent !== content) {
@@ -170,6 +179,44 @@ export default class RuleBasedDailyTasksPlugin extends Plugin {
 
       return file.path.startsWith(`${sourceFolder}/`);
     });
+  }
+
+  private buildGeneratedTaskLines(content: string, tasks: TaskTemplate[]): string[] {
+    const existingLines = this.getExistingGeneratedTaskLines(content);
+    const existingByText = new Map<string, string[]>();
+
+    for (const line of existingLines) {
+      const taskMatch = line.match(/^\s*[-*]\s+\[[ xX]\]\s+(.+?)\s*$/);
+      if (!taskMatch) {
+        continue;
+      }
+
+      const key = normalizeGeneratedTaskText(taskMatch[1]);
+      const lines = existingByText.get(key) ?? [];
+      lines.push(line.trimEnd().replace(/^\s*[-*]\s+/, "- "));
+      existingByText.set(key, lines);
+    }
+
+    return tasks.map((task) => {
+      const existing = existingByText.get(normalizeGeneratedTaskText(task.text));
+      const preservedLine = existing?.shift();
+      return preservedLine ?? `- [ ] ${task.text}`;
+    });
+  }
+
+  private getExistingGeneratedTaskLines(content: string): string[] {
+    const heading = this.settings.generatedHeading.trim() || DEFAULT_SETTINGS.generatedHeading;
+    const headingBlock = new RegExp(
+      `(^|\n)##\\s+${escapeRegExp(heading)}\\s*\n[\\s\\S]*?(?=\n#{1,6}\\s+|$)`
+    );
+    const headingMatch = content.match(headingBlock);
+    if (headingMatch) {
+      return headingMatch[0].split(/\r?\n/);
+    }
+
+    const existingBlock = new RegExp(`${escapeRegExp(BLOCK_START)}[\\s\\S]*?${escapeRegExp(BLOCK_END)}`);
+    const markerMatch = content.match(existingBlock);
+    return markerMatch ? markerMatch[0].split(/\r?\n/) : [];
   }
 
   private parseTaskTemplates(content: string, sourcePath: string): TaskTemplate[] {
@@ -510,6 +557,10 @@ function normalizeFolder(folder: string): string {
 
 function indentationWidth(value: string): number {
   return value.replace(/\t/g, "    ").length;
+}
+
+function normalizeGeneratedTaskText(value: string): string {
+  return value.trim().replace(/\s+✅\s+\d{4}-\d{2}-\d{2}\s*$/, "").replace(/\s+/g, " ");
 }
 
 function isValidDate(value: string): boolean {

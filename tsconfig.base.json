@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
     "inlineSourceMap": true,
     "inlineSources": true,
     "module": "ESNext",
@@ -13,8 +12,5 @@
       "DOM",
       "ES2018"
     ]
-  },
-  "include": [
-    "main.ts"
-  ]
+  }
 }

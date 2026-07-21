@@ -1,0 +1,9 @@
+{
+  "id": "project-docs-bridge",
+  "name": "Project Docs Bridge",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Safely mirrors project documentation into a real folder in an Obsidian vault.",
+  "author": "Arkadiy",
+  "isDesktopOnly": true
+}

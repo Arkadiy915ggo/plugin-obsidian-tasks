@@ -1,0 +1,16 @@
+{
+  "name": "project-docs-bridge",
+  "version": "0.1.0",
+  "description": "Safely mirrors project documentation into an Obsidian vault.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.mjs",
+    "build": "tsc -p tsconfig.json --noEmit -skipLibCheck && node esbuild.mjs production",
+    "test": "tsc -p tsconfig.test.json && node --test .test-dist/tests/*.test.js"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.3"
+  },
+  "author": "Arkadiy",
+  "license": "MIT"
+}

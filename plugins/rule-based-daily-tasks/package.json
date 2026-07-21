@@ -1,0 +1,13 @@
+{
+  "name": "rule-based-daily-tasks",
+  "version": "0.1.0",
+  "description": "Obsidian plugin that generates daily tasks from simple recurrence rules.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.mjs",
+    "build": "tsc -p tsconfig.json --noEmit -skipLibCheck && node esbuild.mjs production"
+  },
+  "keywords": ["obsidian", "tasks", "daily-notes"],
+  "author": "Arkadiy",
+  "license": "MIT"
+}
